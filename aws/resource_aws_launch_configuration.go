@@ -26,6 +26,9 @@ func resourceAwsLaunchConfiguration() *schema.Resource {
 			State: schema.ImportStatePassthrough,
 		},
 
+		SchemaVersion: 1,
+		MigrateState:  resourceAwsLaunchConfigurationMigrateState,
+
 		Schema: map[string]*schema.Schema{
 			"name": {
 				Type:          schema.TypeString,
@@ -143,6 +146,14 @@ func resourceAwsLaunchConfiguration() *schema.Resource {
 				Type:     schema.TypeSet,
 				Optional: true,
 				Computed: true,
+				Set: func(v interface{}) int {
+					r := resourceAwsLaunchConfiguration().Schema["ebs_block_device"].Elem.(*schema.Resource)
+					f := schema.HashResource(r)
+					idx := f(v)
+
+					log.Printf("[DEBUG] CRUD computed idx %d from %#v", idx, v)
+					return idx
+				},
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
 						"delete_on_termination": {
