@@ -61,6 +61,7 @@ The following arguments are supported:
   Syntax: "ddd:hh24:mi-ddd:hh24:mi". Eg: "Mon:00:00-Mon:03:00".
 * `promotion_tier` - (Optional) Default 0. Failover Priority setting on instance level. The reader who has lower tier has higher priority to get promoter to writer.
 * `publicly_accessible` - (Optional) Bool to control if instance is publicly accessible. Default is `false`.
+* `security_group_names` - (Optional) A list of DB security groups to associate with this instance. This is only for instances in the EC2-Classic Platform.
 * `tags` - (Optional) A mapping of tags to assign to the instance.
 
 ## Attributes Reference

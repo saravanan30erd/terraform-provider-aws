@@ -184,14 +184,6 @@ func resourceAwsNeptuneClusterInstance() *schema.Resource {
 
 			"tags": tagsSchema(),
 
-			"vpc_security_group_ids": {
-				Type:     schema.TypeSet,
-				Optional: true,
-				Computed: true,
-				Elem:     &schema.Schema{Type: schema.TypeString},
-				Set:      schema.HashString,
-			},
-
 			"writer": {
 				Type:     schema.TypeBool,
 				Computed: true,
@@ -250,10 +242,6 @@ func resourceAwsNeptuneClusterInstanceCreate(d *schema.ResourceData, meta interf
 
 	if attr := d.Get("security_group_names").(*schema.Set); attr.Len() > 0 {
 		createOpts.DBSecurityGroups = expandStringList(attr.List())
-	}
-
-	if attr := d.Get("vpc_security_group_ids").(*schema.Set); attr.Len() > 0 {
-		createOpts.VpcSecurityGroupIds = expandStringList(attr.List())
 	}
 
 	log.Printf("[DEBUG] Creating Neptune Instance: %s", createOpts)
@@ -367,16 +355,6 @@ func resourceAwsNeptuneClusterInstanceRead(d *schema.ResourceData, meta interfac
 		d.Set("neptune_parameter_group_name", db.DBParameterGroups[0].DBParameterGroupName)
 	}
 
-	if len(db.VpcSecurityGroups) > 0 {
-		var sg []string
-		for _, g := range db.VpcSecurityGroups {
-			sg = append(sg, aws.StringValue(g.VpcSecurityGroupId))
-		}
-		if err := d.Set("vpc_security_group_ids", sg); err != nil {
-			return fmt.Errorf("Error saving VPC Security Group IDs for Neptune Cluster Instance (%s): %s", d.Id(), err)
-		}
-	}
-
 	if len(db.DBSecurityGroups) > 0 {
 		var sgn []string
 		for _, g := range db.DBSecurityGroups {
@@ -442,15 +420,6 @@ func resourceAwsNeptuneClusterInstanceUpdate(d *schema.ResourceData, meta interf
 			req.DBSecurityGroups = expandStringList(attr.List())
 		} else {
 			req.DBSecurityGroups = []*string{}
-		}
-		requestUpdate = true
-	}
-
-	if d.HasChange("vpc_security_group_ids") {
-		if attr := d.Get("vpc_security_group_ids").(*schema.Set); attr.Len() > 0 {
-			req.VpcSecurityGroupIds = expandStringList(attr.List())
-		} else {
-			req.VpcSecurityGroupIds = []*string{}
 		}
 		requestUpdate = true
 	}
