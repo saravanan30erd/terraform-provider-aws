@@ -170,6 +170,13 @@ func resourceAwsNeptuneClusterInstance() *schema.Resource {
 				ForceNew: true,
 			},
 
+			"security_group_names": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+				Set:      schema.HashString,
+			},
+
 			"storage_encrypted": {
 				Type:     schema.TypeBool,
 				Computed: true,
@@ -239,6 +246,10 @@ func resourceAwsNeptuneClusterInstanceCreate(d *schema.ResourceData, meta interf
 
 	if attr, ok := d.GetOk("preferred_maintenance_window"); ok {
 		createOpts.PreferredMaintenanceWindow = aws.String(attr.(string))
+	}
+
+	if attr := d.Get("security_group_names").(*schema.Set); attr.Len() > 0 {
+		createOpts.DBSecurityGroups = expandStringList(attr.List())
 	}
 
 	if attr := d.Get("vpc_security_group_ids").(*schema.Set); attr.Len() > 0 {
@@ -362,7 +373,17 @@ func resourceAwsNeptuneClusterInstanceRead(d *schema.ResourceData, meta interfac
 			sg = append(sg, aws.StringValue(g.VpcSecurityGroupId))
 		}
 		if err := d.Set("vpc_security_group_ids", sg); err != nil {
-			return fmt.Errorf("Error saving VPC Security Group IDs to state for Neptune Cluster Instance (%s): %s", d.Id(), err)
+			return fmt.Errorf("Error saving VPC Security Group IDs for Neptune Cluster Instance (%s): %s", d.Id(), err)
+		}
+	}
+
+	if len(db.DBSecurityGroups) > 0 {
+		var sgn []string
+		for _, g := range db.DBSecurityGroups {
+			sgn = append(sgn, aws.StringValue(g.DBSecurityGroupName))
+		}
+		if err := d.Set("security_group_names", sgn); err != nil {
+			return fmt.Errorf("Error saving DB security groups for Neptune Cluster Instance (%s): %s", d.Id(), err)
 		}
 	}
 
@@ -413,6 +434,15 @@ func resourceAwsNeptuneClusterInstanceUpdate(d *schema.ResourceData, meta interf
 	if d.HasChange("promotion_tier") {
 		d.SetPartial("promotion_tier")
 		req.PromotionTier = aws.Int64(int64(d.Get("promotion_tier").(int)))
+		requestUpdate = true
+	}
+
+	if d.HasChange("security_group_names") {
+		if attr := d.Get("security_group_names").(*schema.Set); attr.Len() > 0 {
+			req.DBSecurityGroups = expandStringList(attr.List())
+		} else {
+			req.DBSecurityGroups = []*string{}
+		}
 		requestUpdate = true
 	}
 
