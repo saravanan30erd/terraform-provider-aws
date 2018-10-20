@@ -177,6 +177,14 @@ func resourceAwsNeptuneClusterInstance() *schema.Resource {
 
 			"tags": tagsSchema(),
 
+			"vpc_security_group_ids": {
+				Type:     schema.TypeSet,
+				Optional: true,
+				Computed: true,
+				Elem:     &schema.Schema{Type: schema.TypeString},
+				Set:      schema.HashString,
+			},
+
 			"writer": {
 				Type:     schema.TypeBool,
 				Computed: true,
@@ -231,6 +239,10 @@ func resourceAwsNeptuneClusterInstanceCreate(d *schema.ResourceData, meta interf
 
 	if attr, ok := d.GetOk("preferred_maintenance_window"); ok {
 		createOpts.PreferredMaintenanceWindow = aws.String(attr.(string))
+	}
+
+	if attr := d.Get("vpc_security_group_ids").(*schema.Set); attr.Len() > 0 {
+		createOpts.VpcSecurityGroupIds = expandStringList(attr.List())
 	}
 
 	log.Printf("[DEBUG] Creating Neptune Instance: %s", createOpts)
@@ -344,6 +356,16 @@ func resourceAwsNeptuneClusterInstanceRead(d *schema.ResourceData, meta interfac
 		d.Set("neptune_parameter_group_name", db.DBParameterGroups[0].DBParameterGroupName)
 	}
 
+	if len(db.VpcSecurityGroups) > 0 {
+		var sg []string
+		for _, g := range db.VpcSecurityGroups {
+			sg = append(sg, aws.StringValue(g.VpcSecurityGroupId))
+		}
+		if err := d.Set("vpc_security_group_ids", sg); err != nil {
+			return fmt.Errorf("Error saving VPC Security Group IDs to state for Neptune Cluster Instance (%s): %s", d.Id(), err)
+		}
+	}
+
 	if err := saveTagsNeptune(conn, d, aws.StringValue(db.DBInstanceArn)); err != nil {
 		return fmt.Errorf("Failed to save tags for Neptune Cluster Instance (%s): %s", aws.StringValue(db.DBInstanceIdentifier), err)
 	}
@@ -391,6 +413,15 @@ func resourceAwsNeptuneClusterInstanceUpdate(d *schema.ResourceData, meta interf
 	if d.HasChange("promotion_tier") {
 		d.SetPartial("promotion_tier")
 		req.PromotionTier = aws.Int64(int64(d.Get("promotion_tier").(int)))
+		requestUpdate = true
+	}
+
+	if d.HasChange("vpc_security_group_ids") {
+		if attr := d.Get("vpc_security_group_ids").(*schema.Set); attr.Len() > 0 {
+			req.VpcSecurityGroupIds = expandStringList(attr.List())
+		} else {
+			req.VpcSecurityGroupIds = []*string{}
+		}
 		requestUpdate = true
 	}
 
